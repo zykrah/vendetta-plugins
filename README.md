@@ -1,7 +1,8 @@
-# Vendetta Plugins Template
-This repo contains a template for creating [Vendetta](https://github.com/vendetta-mod/Vendetta) plugins.
+# Zykrah's Vendetta Plugins
+This repo contains my [Vendetta](https://github.com/vendetta-mod/Vendetta) plugins.
 
-# How to install?
-Paste a plugin URL into the Plugins page of Vendetta, following a basic format of:
+# [HideBlockedMessages](https://zykrah.github.io/vendetta-plugins/HideBlockedMessages)
 
-https://`YOUR_GITHUB_USERNAME`.github.io/`REPO_NAME`/`PLUGIN_NAME`
+A plugin that removes the `X blocked message/s` prompt from chat.
+
+https://zykrah.github.io/vendetta-plugins/HideBlockedMessages
