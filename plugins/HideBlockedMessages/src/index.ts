@@ -1,6 +1,7 @@
 import { FluxDispatcher } from '@vendetta/metro/common';
 import { before } from "@vendetta/patcher"
 import { findByProps } from "@vendetta/metro"
+import { logger } from "@vendetta"
 
 const RelationshipStore = findByProps("getRelationships", "isBlocked");
 const FD = FluxDispatcher._actionHandlers._orderedActionHandlers;
@@ -51,7 +52,7 @@ const attempts = 3;
 const delayedStart = () => {
     try {
         attempt++;
-        console.log(`${pluginName} Delayed start attempt ${attempt}/${attempts}.`);
+        logger.log(`${pluginName} Delayed start attempt ${attempt}/${attempts}.`);
 
         // Begin Patches
         const patch1 = (
@@ -90,11 +91,11 @@ const delayedStart = () => {
         );
         patches.push(patch3);
 
-        console.log(`${pluginName} loaded.`);
+        logger.log(`${pluginName} loaded.`);
 
         return null;
     } catch (err) {
-        console.log(`[${pluginName} Error]`, err);
+        logger.log(`[${pluginName} Error]`, err);
 
         if (attempt < attempts) {
             console.warn(`${pluginName} failed to start. Trying again in ${attempt}0s.`);
@@ -107,11 +108,11 @@ const delayedStart = () => {
 
 // Load Plugin (begin first delayed start)
 const onLoad = () => {
-    console.log(`Loading ${pluginName}...`);
+    logger.log(`Loading ${pluginName}...`);
 
     // Dispatch with a fake message to enable the action handlers from first loadup
     for (let type of ["MESSAGE_CREATE", "MESSAGE_UPDATE"]) {
-        console.log(`Dispatching ${type} to enable action handler.`);
+        logger.log(`Dispatching ${type} to enable action handler.`);
         FluxDispatcher.dispatch({
             type: type,
             message: constructMessage('PLACEHOLDER', { id: '0' }),
@@ -125,10 +126,10 @@ const onLoad = () => {
 export default {
     onLoad,
     onUnload: () => {
-        console.log(`Unloading ${pluginName}...`);
+        logger.log(`Unloading ${pluginName}...`);
         for (let unpatch of patches) {
             unpatch();
         };
-        console.log(`${pluginName} unloaded.`);
+        logger.log(`${pluginName} unloaded.`);
     }
 };
