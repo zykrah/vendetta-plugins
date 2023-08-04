@@ -1,13 +1,14 @@
 import { FluxDispatcher } from '@vendetta/metro/common';
-import { before } from "@vendetta/patcher"
-import { findByProps } from "@vendetta/metro"
+import { before, } from "@vendetta/patcher"
+import { findByProps, findByName } from "@vendetta/metro"
 import { logger } from "@vendetta"
 
+const RowManager = findByName("RowManager");
+
 const RelationshipStore = findByProps("getRelationships", "isBlocked");
-const FD = FluxDispatcher._actionHandlers._orderedActionHandlers;
 const pluginName = "HideBlockedMessages";
   
-function constructMessage(message, channel) {
+function constructMessage(message, channel ) {
     let msg = {
         id: '',
         type: 0,
@@ -46,71 +47,62 @@ const isBlocked = (id) => {
 };
 
 let patches = [];
-let attempt = 0;
-const attempts = 3;
 
-const delayedStart = () => {
+const startPlugin = () => {
     try {
-        attempt++;
-        logger.log(`${pluginName} Delayed start attempt ${attempt}/${attempts}.`);
-
-        // Begin Patches
+        // Main patch
         const patch1 = (
-            before("actionHandler", FD.LOAD_MESSAGES_SUCCESS?.find(i => i.name === "MessageStore"), (args: any) => {
-                
-                let messages = args[0].messages.filter((message) => { 
-                    return (!isBlocked(message?.author?.id));
-                });
-                
-                args[0].messages = messages;
+            before("dispatch", FluxDispatcher, ([event]) => {
+                // Hides blocked messages on channel loads
+                if (event.type === "LOAD_MESSAGES_SUCCESS") {
+                    event.messages = event.messages.filter((message) => { 
+                        return (!isBlocked(message?.author?.id));
+                    });
+                }
+                // Hides blocked messages on message creation/update
+                if (event.type === "MESSAGE_CREATE" || event.type === "MESSAGE_UPDATE") {
+                    let message = event.message;
+
+                    if (isBlocked(message?.author?.id)) {
+                        // Drop event
+                        event.channelId = "0"
+                    };
+                }
             })
         );
         patches.push(patch1);
 
+        // Fallback patch to mostly remove blocked message rows if main patch doesn't work on first load
         const patch2 = (
-            before("actionHandler", FD.MESSAGE_UPDATE?.find(i => i.name === "MessageStore"), (args: any) => {
-                
-                let message = args[0].message;
-                
-                if (isBlocked(message?.author?.id)) {
-                    args[0].message = {};
-                };
+            before("generate", RowManager.prototype, ([data]) => {
+                if (isBlocked(data.message?.author?.id)) {
+                    data.renderContentOnly = true
+                    data.message.content = null
+                    data.message.reactions = []
+                    data.message.canShowComponents= false
+                    if (data.rowType === 2) {
+                        data.roleStyle = ""
+                        data.text = "[Temp] Blocked message. Reloading should fix."
+                        data.revealed = false
+                        data.content = []
+                    }
+                }
             })
         );
         patches.push(patch2);
 
-        const patch3 = (
-            before("actionHandler", FD.MESSAGE_CREATE?.find(i => i.name === "MessageStore"), (args: any) => {
-                
-                let message = args[0].message;
-                
-                if (isBlocked(message?.author?.id)) {
-                    args[0].message = {};
-                };
-            })
-        );
-        patches.push(patch3);
-
         logger.log(`${pluginName} loaded.`);
-
         return null;
     } catch (err) {
         logger.log(`[${pluginName} Error]`, err);
-
-        if (attempt < attempts) {
-            console.warn(`${pluginName} failed to start. Trying again in ${attempt}0s.`);
-            setTimeout(delayedStart, attempt * 10000);
-        } else {
-            console.error(`${pluginName} failed to start. Giving up.`);
-        };
     };
 }
 
-// Load Plugin (begin first delayed start)
+// Load Plugin
 const onLoad = () => {
     logger.log(`Loading ${pluginName}...`);
 
-    // Dispatch with a fake message to enable the action handlers from first loadup
+    // Dispatch with a fake event to enable the action handlers from first loadup
     for (let type of ["MESSAGE_CREATE", "MESSAGE_UPDATE"]) {
         logger.log(`Dispatching ${type} to enable action handler.`);
         FluxDispatcher.dispatch({
@@ -119,8 +111,17 @@ const onLoad = () => {
         });
     };
 
+    // Dispatch with a fake event to enable the action handlers from first loadup
+    for (let type of ["LOAD_MESSAGES", "LOAD_MESSAGES_SUCCESS"]) {
+        logger.log(`Dispatching ${type} to enable action handler.`);
+        FluxDispatcher.dispatch({
+            type: type,
+            messages: [],
+        });
+    };
+
     // Begin patch sequence
-    setTimeout(() => delayedStart(), 300);
+    startPlugin();
 };
 
 export default {
